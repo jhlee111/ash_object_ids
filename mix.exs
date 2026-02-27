@@ -48,6 +48,7 @@ defmodule AshObjectIds.MixProject do
     [
       {:ash, "~> 3.0"},
       {:erl_base58, "~> 0.0.1"},
+      {:ash_postgres, "~> 2.0", optional: true},
       {:ex_doc, "~> 0.38.3", only: :dev, runtime: false}
     ]
   end

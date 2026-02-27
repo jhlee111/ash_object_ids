@@ -24,22 +24,32 @@ defmodule AshObjectIds.Type do
   def dump_to_native(uuid_type, prefix, input, constraints) do
     case decode_object_id(input, prefix) do
       {:ok, uuid} ->
-        # This doesn't just call `uuid_type.dump_to_native` because
-        # Ecto.UUID.dump doesn't support the 128bit uuid, so it would
-        # succeed for Ash.Type.UUIDv7, but fail for Ash.Type.UUID.
-        # So only deal with it in case of custom UUID types.
+        # Ecto.UUID.dump doesn't support 128-bit binary uuid, so for standard
+        # UUID types we return the binary directly. Custom types get delegated.
         case uuid_type do
-          Ash.Type.UUID -> uuid
-          Ash.Type.UUIDv7 -> uuid
+          Ash.Type.UUID -> {:ok, uuid}
+          Ash.Type.UUIDv7 -> {:ok, uuid}
           _ -> uuid_type.dump_to_native(uuid, constraints)
         end
 
-      _ ->
+      {:error, _} ->
+        :error
+
+      :error ->
         :error
     end
+  end
 
-    with {:error, _} <- decode_object_id(input, prefix) do
-      :error
+  def equal?(_, nil, nil), do: true
+  def equal?(_, nil, _), do: false
+  def equal?(_, _, nil), do: false
+
+  def equal?(_prefix, term1, term2) do
+    with {:ok, _, uuid1} <- decode_object_id(term1),
+         {:ok, _, uuid2} <- decode_object_id(term2) do
+      uuid1 == uuid2
+    else
+      _ -> false
     end
   end
 

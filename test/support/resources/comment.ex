@@ -26,6 +26,6 @@ defmodule AshObjectIds.Test.Resources.Comment do
   end
 
   relationships do
-    belongs_to(:post, Post, attribute_type: Post.ObjectId)
+    belongs_to(:post, Post)
   end
 end

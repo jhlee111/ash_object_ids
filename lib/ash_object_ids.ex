@@ -30,14 +30,27 @@ defmodule AshObjectIds do
   the UUIDs are encoded as "{prefix}_{base58(uuid)}".
 
   Each resource will have a generated `<resource>.ObjectId` module which is the
-  `Ash.Type` for that ID. This can then be used with `belongs_to` relationships:
+  `Ash.Type` for that ID. Foreign key attributes for `belongs_to` relationships
+  are automatically created with the correct ObjectId type:
 
       relationships do
-        belongs_to :post, App.Blog.Post, attribute_type: App.Blog.Post.ObjectId
+        belongs_to :post, App.Blog.Post
+        # post_id attribute is auto-created as App.Blog.Post.ObjectId
       end
   """
 
   alias AshObjectIds.Type
+
+  @transformers (if Code.ensure_loaded?(AshPostgres.DataLayer) do
+    [
+      AshObjectIds.Transformers.BelongsToAttribute,
+      AshObjectIds.Transformers.MigrationDefaults
+    ]
+  else
+    [
+      AshObjectIds.Transformers.BelongsToAttribute
+    ]
+  end)
 
   @persisters [
     AshObjectIds.Persisters.DefineType
@@ -58,12 +71,19 @@ defmodule AshObjectIds do
         type: :string,
         doc: "The prefix to use for the given resource",
         required: true
+      ],
+      migration_default?: [
+        type: :boolean,
+        doc:
+          "When true, adds `uuid_generate_v7()` as the PostgreSQL migration default for the primary key. Requires `AshObjectIds.PostgresExtension` to be installed.",
+        default: false
       ]
     ]
   }
 
   use Spark.Dsl.Extension,
     sections: [@object_id],
+    transformers: @transformers,
     persisters: @persisters
 
   @doc """

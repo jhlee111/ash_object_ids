@@ -43,6 +43,14 @@ defmodule AshObjectIdsTest do
     assert "c_" <> _ = comment.id
   end
 
+  test "BelongsToAttribute auto-creates FK with ObjectId type" do
+    # Comment.post_id should be auto-created as Post.ObjectId
+    # (no manual attribute_type: needed)
+    attr = Ash.Resource.Info.attribute(Comment, :post_id)
+    assert attr != nil
+    assert attr.type == Post.ObjectId
+  end
+
   test "find_resource_for_prefix/2" do
     assert AshObjectIds.find_resource_for_prefix([Domain], "post") == Post
     assert AshObjectIds.find_resource_for_prefix([Domain], "florb") == nil

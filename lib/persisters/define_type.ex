@@ -93,6 +93,11 @@ defmodule AshObjectIds.Persisters.DefineType do
            end
 
            @impl Ash.Type
+           def equal?(term1, term2) do
+             AshObjectIds.Type.equal?(unquote(prefix), term1, term2)
+           end
+
+           @impl Ash.Type
            def matches_type?(value, constraints) do
              case cast_input(value, constraints) do
                {:ok, _} -> true
