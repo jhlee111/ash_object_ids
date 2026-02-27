@@ -170,7 +170,9 @@ defmodule AshObjectIds.Persisters.DefineType do
         {:ok, _prefix} ->
           object_id_type = Module.concat(destination, ObjectId)
 
-          if Code.ensure_loaded?(object_id_type) do
+          # For self-referential relationships, the ObjectId module was just
+          # created by eval above, so Code.ensure_loaded? may return false.
+          if destination == source_module || Code.ensure_loaded?(object_id_type) do
             {:ok, object_id_type}
           else
             :skip
