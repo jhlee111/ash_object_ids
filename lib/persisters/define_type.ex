@@ -168,15 +168,11 @@ defmodule AshObjectIds.Persisters.DefineType do
     if destination_dsl do
       case AshObjectIds.Info.object_id_prefix(destination_dsl) do
         {:ok, _prefix} ->
-          object_id_type = Module.concat(destination, ObjectId)
-
-          # For self-referential relationships, the ObjectId module was just
-          # created by eval above, so Code.ensure_loaded? may return false.
-          if destination == source_module || Code.ensure_loaded?(object_id_type) do
-            {:ok, object_id_type}
-          else
-            :skip
-          end
+          # The ObjectId module will be defined by the destination's DefineType
+          # persister. It may not exist yet at compile time (compilation order
+          # varies), but replace_entity doesn't validate types, and the module
+          # will exist by runtime.
+          {:ok, Module.concat(destination, ObjectId)}
 
         _ ->
           :skip
