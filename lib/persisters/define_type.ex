@@ -48,74 +48,139 @@ defmodule AshObjectIds.Persisters.DefineType do
             path: [:attributes]
       end
 
-    {:ok,
-     Spark.Dsl.Transformer.eval(
-       dsl,
-       [
-         uuid_type: uuid_type,
-         prefix: prefix
-       ],
-       quote do
-         defmodule ObjectId do
-           use Ash.Type
+    dsl =
+      Spark.Dsl.Transformer.eval(
+        dsl,
+        [
+          uuid_type: uuid_type,
+          prefix: prefix
+        ],
+        quote do
+          defmodule ObjectId do
+            use Ash.Type
 
-           @impl Ash.Type
-           defdelegate storage_type(constraints), to: unquote(uuid_type)
+            @impl Ash.Type
+            defdelegate storage_type(constraints), to: unquote(uuid_type)
 
-           @impl Ash.Type
-           def cast_input(input, constraints) do
-             AshObjectIds.Type.cast_input(unquote(uuid_type), unquote(prefix), input, constraints)
-           end
+            @impl Ash.Type
+            def cast_input(input, constraints) do
+              AshObjectIds.Type.cast_input(unquote(uuid_type), unquote(prefix), input, constraints)
+            end
 
-           @impl Ash.Type
-           def cast_stored(input, constraints) do
-             AshObjectIds.Type.cast_stored(
-               unquote(uuid_type),
-               unquote(prefix),
-               input,
-               constraints
-             )
-           end
+            @impl Ash.Type
+            def cast_stored(input, constraints) do
+              AshObjectIds.Type.cast_stored(
+                unquote(uuid_type),
+                unquote(prefix),
+                input,
+                constraints
+              )
+            end
 
-           @impl Ash.Type
-           def dump_to_native(input, constraints) do
-             AshObjectIds.Type.dump_to_native(
-               unquote(uuid_type),
-               unquote(prefix),
-               input,
-               constraints
-             )
-           end
+            @impl Ash.Type
+            def dump_to_native(input, constraints) do
+              AshObjectIds.Type.dump_to_native(
+                unquote(uuid_type),
+                unquote(prefix),
+                input,
+                constraints
+              )
+            end
 
-           @impl Ash.Type
-           def dump_to_embedded(value, constraints) do
-             cast_input(value, constraints)
-           end
+            @impl Ash.Type
+            def dump_to_embedded(value, constraints) do
+              cast_input(value, constraints)
+            end
 
-           @impl Ash.Type
-           def equal?(term1, term2) do
-             AshObjectIds.Type.equal?(unquote(prefix), term1, term2)
-           end
+            @impl Ash.Type
+            def equal?(term1, term2) do
+              AshObjectIds.Type.equal?(unquote(prefix), term1, term2)
+            end
 
-           @impl Ash.Type
-           def matches_type?(value, constraints) do
-             case cast_input(value, constraints) do
-               {:ok, _} -> true
-               _ -> false
-             end
-           end
+            @impl Ash.Type
+            def matches_type?(value, constraints) do
+              case cast_input(value, constraints) do
+                {:ok, _} -> true
+                _ -> false
+              end
+            end
 
-           @impl Ash.Type
-           def cast_atomic(new_value, constraints) do
-             unquote(uuid_type).cast_atomic(new_value, constraints)
-           end
+            @impl Ash.Type
+            def cast_atomic(new_value, constraints) do
+              unquote(uuid_type).cast_atomic(new_value, constraints)
+            end
 
-           @impl Ash.Type
-           def generator(constraints) do
-             AshObjectIds.Type.generator(unquote(uuid_type), unquote(prefix), constraints)
-           end
-         end
-       end
-     )}
+            @impl Ash.Type
+            def generator(constraints) do
+              AshObjectIds.Type.generator(unquote(uuid_type), unquote(prefix), constraints)
+            end
+          end
+        end
+      )
+
+    # Update FK attributes for belongs_to relationships pointing to AshObjectIds resources
+    dsl = update_fk_attributes(dsl, module)
+
+    {:ok, dsl}
+  end
+
+  # Scans belongs_to relationships and updates FK attribute types to use
+  # the destination resource's ObjectId type (if available).
+  defp update_fk_attributes(dsl, module) do
+    dsl
+    |> Spark.Dsl.Transformer.get_entities([:relationships])
+    |> Enum.filter(&(&1.type == :belongs_to))
+    |> Enum.reduce(dsl, fn relationship, dsl ->
+      case resolve_destination_object_id(dsl, module, relationship) do
+        {:ok, object_id_type} ->
+          attr = Ash.Resource.Info.attribute(dsl, relationship.source_attribute)
+
+          if attr && attr.type != object_id_type do
+            updated_attr = %{attr | type: object_id_type}
+
+            Spark.Dsl.Transformer.replace_entity(dsl, [:attributes], updated_attr, fn record ->
+              record.__struct__ == attr.__struct__ && record.name == attr.name
+            end)
+          else
+            dsl
+          end
+
+        :skip ->
+          dsl
+      end
+    end)
+  end
+
+  defp resolve_destination_object_id(dsl, source_module, relationship) do
+    destination = relationship.destination
+
+    destination_dsl =
+      if destination == source_module do
+        dsl
+      else
+        try do
+          destination.spark_dsl_config()
+        rescue
+          _ -> nil
+        end
+      end
+
+    if destination_dsl do
+      case AshObjectIds.Info.object_id_prefix(destination_dsl) do
+        {:ok, _prefix} ->
+          object_id_type = Module.concat(destination, ObjectId)
+
+          if Code.ensure_loaded?(object_id_type) do
+            {:ok, object_id_type}
+          else
+            :skip
+          end
+
+        _ ->
+          :skip
+      end
+    else
+      :skip
+    end
   end
 end
