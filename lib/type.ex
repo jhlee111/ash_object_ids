@@ -13,6 +13,13 @@ defmodule AshObjectIds.Type do
 
   def cast_stored(_uuid_type, _prefix, nil, _constraints), do: {:ok, nil}
 
+  def cast_stored(_uuid_type, prefix, input, _constraints)
+      when is_binary(input) and byte_size(input) == 16 do
+    # 16-byte binary from PostgreSQL — encode directly to ObjectId.
+    # Database is the source of truth; no need to validate through uuid_type.
+    {:ok, encode_uuid(input, prefix)}
+  end
+
   def cast_stored(uuid_type, prefix, input, constraints) do
     with {:ok, uuid} when is_binary(uuid) <- uuid_type.cast_stored(input, constraints) do
       {:ok, encode_uuid(input, prefix)}
