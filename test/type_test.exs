@@ -72,6 +72,22 @@ defmodule AshObjectIds.TypeTest do
     assert {:ok, "post_" <> _} = Post.ObjectId.dump_to_embedded(post.id, [])
   end
 
+  for type <- [Ash.Type.UUID, Ash.Type.UUIDv7] do
+    test "cast_input round-trips generated ObjectId with #{inspect(type)}" do
+      id = Type.generate(unquote(type), "user", [])
+      assert "user_" <> _ = id
+      assert {:ok, ^id} = Type.cast_input(unquote(type), "user", id, [])
+    end
+
+    test "cast_input -> dump_to_native -> cast_stored round-trip with #{inspect(type)}" do
+      id = Type.generate(unquote(type), "user", [])
+      assert {:ok, ^id} = Type.cast_input(unquote(type), "user", id, [])
+      assert {:ok, binary} = Type.dump_to_native(unquote(type), "user", id, [])
+      assert byte_size(binary) == 16
+      assert {:ok, ^id} = Type.cast_stored(unquote(type), "user", binary, [])
+    end
+  end
+
   test "generated ObjectId equal?/2" do
     alias AshObjectIds.Test.Resources.Post
 

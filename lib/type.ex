@@ -5,8 +5,8 @@ defmodule AshObjectIds.Type do
 
   def cast_input(uuid_type, prefix, input, constraints) do
     with {:ok, uuid_bin} <- decode_object_id(input, prefix),
-         {:ok, _uuid} <- uuid_type.cast_input(uuid_bin, constraints) do
-      # Keep the value in object id form
+         {:ok, uuid_str} <- Ecto.UUID.load(uuid_bin),
+         {:ok, _uuid} <- uuid_type.cast_input(uuid_str, constraints) do
       {:ok, input}
     end
   end
